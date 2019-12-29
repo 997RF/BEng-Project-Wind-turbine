@@ -1,4 +1,10 @@
 ###Selecting data###
+import pandas as pd
+import sklearn
+import glob
+import os
+import csv
+import matplotlib.pyplot as plt
 
 ###Filtering out the unnecessary columns###
 
