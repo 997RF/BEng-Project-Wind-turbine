@@ -1,82 +1,80 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+from keras.layers.core import Dense
 from keras.models import Sequential
-from sklearn.metrics import mean_squared_error
-from keras.layers import Dense
 from keras.layers import LSTM
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
 from math import sqrt
-from sklearn.preprocessing import StandardScaler
 
-###  Import data  ###
-df = pd.read_csv("C:/Users/Reinis Fisers/PycharmProjects/TF_TEST/afterisoforrest3.csv", index_col=None)
-dfs = df[['Power_kW']] #A is windspeed and B is power
-time = df['TimeStamp']
+# Data loading
+df = pd.read_csv('afterisoforrest3.csv', index_col=None)
+
+# Preparing input data
+df = df[['Power_kW', 'WindSpeed_mps', 'WindSpeed1', 'WindSpeed2', 'WindSpeed3', 'AmbTemp_DegC',
+            'Pitch_Deg', 'NacelleOrientation_Deg', 'RotorSpeedAve', 'MeasuredYawError']]
+
+test_data = pd.read_csv("PredictionTestData.csv", index_col=None)
+# test_data = test_data.head(2592000)
+time = test_data['TimeStamp']
+test = test_data[['Power_kW', 'WindSpeed_mps', 'WindSpeed1', 'WindSpeed2', 'WindSpeed3', 'AmbTemp_DegC',
+            'Pitch_Deg', 'NacelleOrientation_Deg', 'RotorSpeedAve', 'MeasuredYawError']]
+
+# Preparing label data
+label = df['Power_kW']
+labeltest = test_data[['Power_kW']]
+
 dates = pd.to_datetime(time, format='%Y-%m-%d %H:%M:%S.%f')
-print(dates[200])
-df.TimeStamp = dates
-timez = df['TimeStamp']
+test_data.TimeStamp = dates
+times = test_data[['TimeStamp']]
 
-scaler = StandardScaler()
-train_arr = scaler.fit_transform(dfs)
+# conversion to numpy array
+x, y = df.values, label.values
+q = test.values
+w = labeltest.values
 
-dataset = dfs.values
-train_size = int(len(dataset) * 0.70)
-test_size = len(dataset) - train_size
-train, test = train_arr[0:train_size, :], train_arr[train_size:len(dataset), :]
-time_test = timez[train_size:len(dataset)]
+# scaling values for model
+x_scale = MinMaxScaler()
+y_scale = MinMaxScaler()
 
+X_train = x_scale.fit_transform(x)
+Y_train = y_scale.fit_transform(y.reshape(-1, 1))
+X_test = x_scale.fit_transform(q)
+Y_test = y_scale.fit_transform(w.reshape(-1, 1))
+X_train = X_train.reshape((-1, 1, 10))
+X_test = X_test.reshape((-1, 1, 10))
 
-def create_dataset(dataset, look_back=1):
-    dataX, dataY = [], []
-    for i in range(len(dataset) - look_back):
-        a = dataset[i:(i + look_back), 0]
-        dataX.append(a)
-        dataY.append(dataset[i + look_back, 0])
-    print(len(dataY))
-    return np.array(dataX), np.array(dataY)
+# time_test = timez[0:test_size]
 
-look_back = 8
-trainX, trainY = create_dataset(train, look_back)
-testX, testY = create_dataset(test, look_back)
-trainX = np.reshape(trainX, (trainX.shape[0], 1, trainX.shape[1]))
-testX = np.reshape(testX, (testX.shape[0], 1, testX.shape[1]))
-
-###  Fit data in LSTM model  ###
+# creating model using Keras
 model = Sequential()
-model.add(LSTM(100, input_shape=(trainX.shape[1], trainX.shape[2])))
+model.add(LSTM(units=100, return_sequences=True, input_shape=(1, 10)))
+model.add(LSTM(units=300, return_sequences=True))
+model.add(LSTM(units=300, return_sequences=True))
+model.add(LSTM(units=100))
 model.add(Dense(units=1, activation='sigmoid'))
-model.compile(loss='mae', optimizer='adam')
-history = model.fit(trainX, trainY, epochs=5, batch_size=1000,
-                    verbose=1, validation_split=0.5, shuffle=False)
+model.compile(loss='mae', optimizer='adam', metrics=['mae', 'mse'])
 
-score = model.evaluate(testX, testY)
+model.fit(X_train, Y_train, batch_size=1000, epochs=25, validation_split=0.1, verbose=1)
+
+score = model.evaluate(X_test, Y_test)
 print('Score: {}'.format(score))
 
+y_predicted = model.predict(X_test)
+y_predicted = y_scale.inverse_transform(y_predicted)
+y_test = y_scale.inverse_transform(Y_test)
 
-###  Generate Prediction  ###
-yhat = model.predict(testX)
-y_predicted = scaler.inverse_transform(yhat)
-testY = testY.reshape(-1, 1)
-y_test = scaler.inverse_transform(testY)
-
-q = time_test[:15000]
-w = y_predicted[:15000]
-e = y_test[:15000]
-
-###  Plot results  ###
-plt.figure(figsize=(20, 8))
-plt.plot(q, w,  label='Predicted values')
-plt.plot(q, e,  label='Given values')
+plt.figure(figsize=(100, 12))
+plt.plot(y_predicted, label='Predicted')
+plt.plot(y_test, label='Measurements')
 plt.legend()
-plt.title(" LSTM Power prediction ")
-plt.ylabel("Power, kW")
-plt.savefig("LSTM.png")
+plt.ylabel("Power, kW", size=30, weight='bold')
+plt.title("LSTM Power prediction", size=30, weight='bold')
+plt.savefig("LSTMP5.png")
 
-### Print error results  ###
-print("Mean squared error: %.3f" % mean_squared_error(testY, yhat))
-print("Root mean squared error: %.3f" % sqrt(mean_squared_error(testY, yhat)))
-print('Variance : %.3f' % r2_score(testY, yhat))
-print("Mean absolute error: %.3f" % mean_absolute_error(testY, yhat))
+print("Mean squared error: %.4f" % mean_squared_error(y_test, y_predicted))
+print("Root mean squared error: %.4f" % sqrt(mean_squared_error(y_test, y_predicted)))
+print('Variance : %.4f' % r2_score(y_test, y_predicted))
+print("Mean absolute error: %.4f" % mean_absolute_error(y_test, y_predicted))
