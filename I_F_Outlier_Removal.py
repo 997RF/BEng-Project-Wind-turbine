@@ -3,36 +3,35 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.ensemble import IsolationForest
 
-#import the data
-data = pd.read_csv("C:/Users/Reinis Fisers/PycharmProjects/TF_TEST/Power_without_zero_and_nan.csv")
+###  Import the data  ###
+data = pd.read_csv("C:/Users/Reinis Fisers/PycharmProjects/TF_TEST/PredictionTestDataWithAverages.csv")
 x = data['WindSpeed_mps']
 y = data['Power_kW']
 
-#Create a two dimensional array with datatset
+###  Create a two dimensional array with datatset  ###
 z = np.array((list(zip(x, y))))
 
-#create the dataframe
+###  Create the dataframe  ###
 new_data = pd.DataFrame(np.array(z), columns=['A', 'B'])
 
-
-#isolation forrest algorithm
-iso_forrest = IsolationForest(n_estimators=10, contamination=0.1, behaviour="new", random_state=0)
+###  Isolation forrest algorithm  ###
+iso_forrest = IsolationForest(n_estimators=100, contamination=0.01, )
 iso_forrest.fit(new_data)
 outliers = iso_forrest.predict(new_data)
 
-#Getting the cleaned date from outliers
-x_cleaned = new_data[np.where(outliers == 1, True, False)]
-x_cleaned.to_csv("afterisoforrest.csv")
+###  Getting the cleaned date from outliers  ###
+x_cleaned = data[np.where(outliers == 1, True, False)]
+x_cleaned.to_csv("Testafterisoforrestwithaverages.csv")
 
-#Plotting the results
-print(plt.rcParams.get('figure.figsize'))
-fig_size = plt.rcParams["figure.figsize"]
-fig_size[0] = 10
-fig_size[1] = 8
-plt.rcParams["figure.figsize"] = fig_size
-plt.scatter(x_cleaned.iloc[:, 0], x_cleaned.iloc[:, 1], c='blue')
-plt.title("Power vs Wind speed ")
-plt.xlabel("Wind speed, m/s")
-plt.ylabel("Power, kW")
-plt.savefig("isoforest7.jpg")
+data1 = pd.read_csv("C:/Users/Reinis Fisers/PycharmProjects/TF_TEST/Testafterisoforrestwithaverages.csv")
+x1 = data1['WindSpeed_mps']
+y1 = data1['Power_kW']
 
+### Plotting the results  ###
+plt.figure()
+plt.scatter(x, y, s=2,  label="Original data")
+plt.scatter(x1, y1, s=2, c='red',  label="After outlier removal")
+plt.title("Power vs Wind speed ", weight='bold', size=20)
+plt.xlabel("Wind speed, m/s",  weight='bold', size=16)
+plt.ylabel("Power, kW",  weight='bold', size=16)
+plt.show()
